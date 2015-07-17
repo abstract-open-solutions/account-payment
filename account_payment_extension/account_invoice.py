@@ -25,18 +25,19 @@
 #
 ##############################################################################
 
-from openerp.osv import fields, orm
+from openerp import models
+from openerp import fields
 
 
-class account_invoice(orm.Model):
+class account_invoice(models.Model):
     _inherit = 'account.invoice'
-    _columns = {
-        'payment_type': fields.many2one('payment.type', 'Payment type'),
-    }
+
+    payment_type = fields.Many2one('payment.type', 'Payment type')
 
     def onchange_partner_id(self, cr, uid, ids, type, partner_id,
                             date_invoice=False, payment_term=False,
-                            partner_bank_id=False, company_id=False):
+                            partner_bank_id=False, company_id=False,
+                            context=None):
 
         result = super(account_invoice, self).onchange_partner_id(
             cr, uid, ids, type, partner_id, date_invoice, payment_term,
@@ -53,7 +54,7 @@ class account_invoice(orm.Model):
             cr, uid, ids, payment_type, partner_id, result)
 
     def onchange_payment_type(self, cr, uid, ids, payment_type,
-                            partner_id, result=None):
+                              partner_id, result=None, context=None):
         if not result:
             result = {'value': {}}
 
@@ -64,7 +65,8 @@ class account_invoice(orm.Model):
             if bank_types:
                 bank_types = [bt.code for bt in bank_types]
                 partner_bank_obj = self.pool.get('res.partner.bank')
-                args = [('partner_id', '=', partner_id),
+                args = [
+                    ('partner_id', '=', partner_id),
                     ('default_bank', '=', 1),
                     ('state', 'in', bank_types)]
                 bank_account_id = partner_bank_obj.search(cr, uid, args)
@@ -82,12 +84,12 @@ class account_invoice(orm.Model):
                 move_line_ids = []
                 for move_line in inv.move_id.line_id:
                     if (move_line.account_id.type == 'receivable' or
-                    move_line.account_id.type == 'payable') and \
-                    move_line.state != 'reconciled' and \
-                    not move_line.reconcile_id.id:
+                            move_line.account_id.type == 'payable') and \
+                            move_line.state != 'reconciled' and \
+                            not move_line.reconcile_id.id:
                         move_line_ids.append(move_line.id)
                 if len(move_line_ids) and inv.partner_bank_id:
                     aml_obj = self.pool.get("account.move.line")
                     aml_obj.write(cr, uid, move_line_ids,
-                        {'partner_bank_id': inv.partner_bank_id.id})
+                                  {'partner_bank_id': inv.partner_bank_id.id})
         return result
